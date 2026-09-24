@@ -1,248 +1,248 @@
-# RC MultiSwitch-E — portage ESP32-S3 Super Mini
+# RC MultiSwitch-E — ESP32-S3 Super Mini port
 
-**Documentation française — v0.2h2 (24 septembre 2026)**  
-**Projet d’origine : WMuCpp / RC MultiSwitch-E de Wilhelm Meier.**  
-**Statut : portage partiel, fonctionnel pour les sorties, Intervall, PWM et Morse ; il ne s’agit pas du firmware STM32 complet.**
+**English documentation — v0.2h2 (24 September 2026)**  
+**Original project: WMuCpp / RC MultiSwitch-E by Wilhelm Meier.**  
+**Status: partial port, functional for switching, Intervall, PWM and Morse; not the complete STM32 firmware.**
 
-## 1. Projet original, sources et licence
+## 1. Original project, sources and license
 
-Ce firmware adapte à l’**ESP32-S3 Super Mini** une partie de RC MultiSwitch-E, développé par **Wilhelm Meier** dans le projet **WMuCpp**. L’objectif est de conserver l’adressage et les commandes MultiSwitch CRSF ainsi que la configuration par paramètres CRSF affichés sur la radio, tout en remplaçant les périphériques STM32 par ceux de l’ESP32-S3.
+This firmware adapts part of **Wilhelm Meier’s RC MultiSwitch-E**, from **WMuCpp**, to an **ESP32-S3 Super Mini**. The aim is to preserve CRSF MultiSwitch addressing, commands, and radio-discoverable CRSF parameters while replacing STM32 peripherals with ESP32-S3 implementations.
 
-Sources du projet d’origine :
+Original source links:
 
-- Dépôt WMuCpp : <https://github.com/wimalopaan/wmucpp>
-- Application STM32 MultiSwitch : <https://github.com/wimalopaan/wmucpp/tree/master/boards/rcmultiswitchG030>
-- Point d’entrée d’origine : <https://github.com/wimalopaan/wmucpp/blob/master/boards/rcmultiswitchG030/msw30.cc>
-- Menu des paramètres CRSF : <https://github.com/wimalopaan/wmucpp/blob/master/boards/rcmultiswitchG030/crsf_cb.h>
-- Décodage des commandes : <https://github.com/wimalopaan/wmucpp/blob/master/boards/rcmultiswitchG030/switch_cb.h>
-- Paramètres persistants : <https://github.com/wimalopaan/wmucpp/blob/master/boards/rcmultiswitchG030/eeprom.h>
-- Décodeur et protocole CRSF : <https://github.com/wimalopaan/wmucpp/blob/master/include_stm32/rc/crsf_2.h>
-- Moteur de sorties, clignotement et Morse : <https://github.com/wimalopaan/wmucpp/blob/master/include_stm32/blinker.h>
+- WMuCpp repository: <https://github.com/wimalopaan/wmucpp>
+- STM32 MultiSwitch application: <https://github.com/wimalopaan/wmucpp/tree/master/boards/rcmultiswitchG030>
+- Original entry point: <https://github.com/wimalopaan/wmucpp/blob/master/boards/rcmultiswitchG030/msw30.cc>
+- CRSF parameter menu: <https://github.com/wimalopaan/wmucpp/blob/master/boards/rcmultiswitchG030/crsf_cb.h>
+- Switch-command handling: <https://github.com/wimalopaan/wmucpp/blob/master/boards/rcmultiswitchG030/switch_cb.h>
+- Persistent settings: <https://github.com/wimalopaan/wmucpp/blob/master/boards/rcmultiswitchG030/eeprom.h>
+- CRSF protocol/decoder: <https://github.com/wimalopaan/wmucpp/blob/master/include_stm32/rc/crsf_2.h>
+- Output/blinking/Morse implementation: <https://github.com/wimalopaan/wmucpp/blob/master/include_stm32/blinker.h>
 
-**Licence du code distribué : GNU GPL v3 ou ultérieure (`GPL-3.0-or-later`) ; voir `LICENSE` dans le projet.** Les mentions de copyright et l’attribution à Wilhelm Meier doivent être conservées dans les fichiers dérivés. Les adaptations ESP32-S3 sont distribuées dans le même cadre. Le script `elrsV3.lua` et le widget sont des éléments séparés : ce document ne leur attribue pas de licence qui n’a pas été vérifiée.
+**Distributed code license: GNU GPL v3 or later (`GPL-3.0-or-later`); see the project’s `LICENSE` file.** Wilhelm Meier’s copyright notices and attribution must remain in derived source files. The ESP32-S3 modifications are distributed under the same terms. The `elrsV3.lua` script and widget are separate components: this document does not assign either a license that has not been verified.
 
-### Crédits / Credits
+### Credits
 
-- **Wilhelm Meier** — auteur du projet WMuCpp / RC MultiSwitch-E d’origine, de la logique et des paramètres auxquels ce portage se réfère.
-- **Pierrot** — initiative du portage ESP32-S3, câblage et essais réels avec RadioMaster ER8/EdgeTX, validation des sorties, Intervall, PWM et Morse, retours et choix fonctionnels.
-- **ChatGPT (OpenAI)** — assistance à l’adaptation Arduino/ESP32-S3, aux diagnostics CRSF et à la rédaction de cette documentation, avec validation matérielle par Pierrot.
+- **Wilhelm Meier** — original WMuCpp / RC MultiSwitch-E author; source design, switch protocol and parameter model.
+- **Pierrot** — ESP32-S3 port initiative, RadioMaster ER8/EdgeTX hardware wiring and testing, validation of outputs, Intervall, PWM and Morse, requirements and feedback.
+- **ChatGPT (OpenAI)** — assistance with Arduino/ESP32-S3 adaptation, CRSF diagnostics and documentation, with hardware validation by Pierrot.
 
-Ce portage n’est **pas une version officielle publiée par Wilhelm Meier**.
+This port is **not an official Wilhelm Meier release**.
 
-## 2. Matériel et câblage
+## 2. Hardware and wiring
 
-Le montage de référence utilise un **RadioMaster ER8 sous ELRS/CRSF**, une **ESP32-S3 Super Mini** et des sorties pour LED ou étages de puissance adaptés.
+The reference setup uses a **RadioMaster ER8 with ELRS/CRSF**, an **ESP32-S3 Super Mini** and LEDs or suitable output drivers.
 
-| Signal | ESP32-S3 | À relier à |
+| Signal | ESP32-S3 | Connect to |
 |---|---|---|
-| CRSF RX | **GPIO12** | TX du récepteur ER8 |
-| CRSF TX | **GPIO13** | RX du récepteur ER8 |
-| Masse | **GND** | GND du récepteur ER8 |
-| OUT0 à OUT7 | **GPIO4 à GPIO11** | Huit sorties logiques ; OUT0 = LED 1, OUT7 = LED 8 |
-| LED RGB de statut | **GPIO48** | WS2812 embarquée, selon la carte Super Mini utilisée |
-| Console | USB / `Serial` | **115200 bauds** |
+| CRSF RX | **GPIO12** | ER8 receiver TX |
+| CRSF TX | **GPIO13** | ER8 receiver RX |
+| Ground | **GND** | ER8 receiver GND |
+| OUT0 to OUT7 | **GPIO4 to GPIO11** | Eight logical outputs; OUT0 = LED 1, OUT7 = LED 8 |
+| RGB status LED | **GPIO48** | Onboard WS2812, depending on Super Mini board variant |
+| Console | USB / `Serial` | **115200 baud** |
 
-Le lien CRSF utilise **420000 bauds, 8N1**, sur **deux fils de données distincts** plus une **masse commune**. **GPIO12 est une entrée RX et absolument pas un GND.** La configuration actuelle n’implémente pas le CRSF sur un seul fil (half-duplex), ni la recherche automatique de débit. Respecter les niveaux logiques 3,3 V.
+CRSF uses **420000 baud, 8N1**, over **two separate data wires** plus **common ground**. **GPIO12 is an RX signal input, NOT ground.** The current port does not support single-wire/half-duplex CRSF or automatic baud detection. Use 3.3 V logic levels.
 
-Les GPIO ne doivent pas alimenter directement une charge de puissance : LED avec résistance adaptée, MOSFET ou étage de commande pour les projecteurs, moteurs et relais.
+Do not drive power loads directly from ESP32 GPIO: use a series resistor for an LED and suitable MOSFET/driver circuitry for floodlights, motors and relays.
 
-### Polarité électrique des sorties
+### Output electrical polarity
 
-Dans `devices_3.h` :
+Set in `devices_3.h`:
 
 ```cpp
 #define MSW_OUTPUT_ACTIVE_LOW 1
 ```
 
-| Valeur | Sortie ON | Sortie OFF |
+| Value | ON level | OFF level |
 |---|---|---|
-| `1` (défaut du portage) | LOW, environ 0 V | HIGH, environ 3,3 V |
-| `0` | HIGH, environ 3,3 V | LOW, environ 0 V |
+| `1` (port default) | LOW, about 0 V | HIGH, about 3.3 V |
+| `0` | HIGH, about 3.3 V | LOW, about 0 V |
 
-La polarité concerne les huit GPIO et le PWM. **Dans la v0.2h2, elle reste un choix global à la compilation : elle n’est pas réglable depuis `elrsV3.lua`, ni individuellement par sortie.** La polarité électrique n’inverse pas les commandes logiques ON/OFF et ne change pas `outs=XX`.
+Polarity applies to all eight GPIOs, including PWM. **In v0.2h2 this is a global compile-time option: `elrsV3.lua` cannot configure it, nor can individual outputs have different polarities.** It does not change logical ON/OFF commands or the meaning of `outs=XX`.
 
-Attention avec un **ULN2803** : une entrée HIGH active son transistor de sortie, qui tire sa charge vers GND. Choisir la polarité en fonction du câblage réel, et non uniquement du type de LED.
+**ULN2803 warning:** a HIGH input turns its output transistor on and pulls the connected load toward GND. Choose polarity for the actual circuit, not merely the LED type.
 
-## 3. Comment fonctionne l’ensemble
+## 3. How the port works
 
-1. L’ER8 transmet les trames CRSF à l’ESP32-S3 sur GPIO12.
-2. Le décodeur valide les trames (CRC8 CRSF, polynôme `0xD5`), reçoit les voies et les commandes MultiSwitch et vérifie l’**adresse logique de commutation**.
-3. Les commandes MultiSwitch **`Set`, `Set4`, `Set4M`** pilotent les états ON/OFF ; **`Prop`** fournit une valeur proportionnelle pour le PWM.
-4. L’ESP32-S3 répond aux requêtes de découverte et de paramètres CRSF de la radio sur GPIO13. Le script **`elrsV3.lua` affiche les paramètres annoncés par le firmware** : il n’est pas nécessaire de le modifier pour voir nos nouvelles rubriques.
-5. Le widget **`lvglMultiSw`** pilote les sorties via les commandes CRSF ; les paramètres du script configurent la manière dont chaque sortie réagit. Une sortie peut par exemple clignoter *et* être atténuée par PWM.
-6. Les réglages persistants sont stockés dans la **NVS** ESP32, espace `msw-s3`, après environ **3 secondes sans nouvelle modification**. Attendre quelques secondes après le dernier changement avant de couper l’alimentation.
+1. The ER8 sends CRSF frames to ESP32-S3 GPIO12.
+2. The decoder checks CRSF frames (CRC8 polynomial `0xD5`), receives channels and MultiSwitch commands, and checks the **logical switch address**.
+3. MultiSwitch **`Set`, `Set4`, `Set4M`** control logical ON/OFF; **`Prop`** supplies the proportional PWM duty.
+4. The ESP32-S3 replies to CRSF device-discovery and parameter requests on GPIO13. **`elrsV3.lua` displays the parameters advertised by the firmware**, so the Lua file itself does not need modifications for these new menus.
+5. The **`lvglMultiSw` widget** sends CRSF MultiSwitch commands; the Lua parameters configure how outputs respond. For example, a blinking output can also have PWM dimming.
+6. Persistent settings use ESP32 **NVS**, namespace `msw-s3`, saved after approximately **3 seconds without further changes**. Wait a few seconds after editing before switching the board off.
 
-L’**adresse de commutation** (`Switch Addr`, réglée à `2` sur le montage d’essai) est distincte de l’**adresse de périphérique CRSF** interne (`0xC8` dans cette version). Le portage prend en charge une seule adresse logique de commutation.
+The **logical switch address** (`Switch Addr`, `2` on the test setup) differs from the internal **CRSF device address** (`0xC8` in this release). This port has one logical switch address.
 
-### Évolution du portage
+### Port development history
 
-| Version | Principales étapes |
+| Version | Main change |
 |---|---|
-| `v0.2` à `v0.2c` | Dialogue CRSF avec la radio, menu de base, adresse, failsafe, sorties ON/OFF et polarité à la compilation. |
-| `v0.2d` | Réception `HardwareSerial` accélérée, table CRC, traitement par lots, tampon RX accru. |
-| `v0.2d1` | Observateur facultatif `C=1 / C? / C=0` pour diagnostiquer la réception sans modifier le décodeur fonctionnel. |
-| `v0.2f` | **Operate** et clignotement **Intervall** par sortie. |
-| `v0.2g` | **PWM LEDC** matériel sur huit sorties et traitement de **Prop**. |
-| `v0.2h` | **Morse** : texte commun et cinq durées. |
-| `v0.2h1` | **Repeat** et **Repeat pause**, extension spécifique ESP32-S3. |
-| **`v0.2h2`** | Dossier d’aide Morse en lecture seule dans le menu de la radio. |
+| `v0.2` through `v0.2c` | CRSF device/menu dialogue, address, failsafe, ON/OFF outputs, compile-time polarity. |
+| `v0.2d` | Faster `HardwareSerial` receive path, CRC lookup, batch processing and larger RX buffer. |
+| `v0.2d1` | Optional `C=1 / C? / C=0` raw RX observer without modifying the working decoder. |
+| `v0.2f` | **Operate** and per-output **Intervall** blinking. |
+| `v0.2g` | Eight hardware **LEDC PWM** channels and **Prop** support. |
+| `v0.2h` | **Morse** with one shared text and five timing values. |
+| `v0.2h1` | **Repeat** and **Repeat pause**, ESP32-S3-specific extensions. |
+| **`v0.2h2`** | Read-only Morse timing help folder in the radio menu. |
 
-Le code conserve la structure Arduino (`.ino` → `msw30.cpp`) et les noms de plusieurs éléments d’origine, mais les pilotes GPIO, UART, LED RGB, NVS et PWM ont été adaptés à l’ESP32-S3. Les anciennes versions d’essai, en particulier la branche UART natif `v0.2e`, **ne sont pas la base de la version actuelle**.
+The Arduino entry point (`.ino` → `msw30.cpp`) keeps recognizable upstream naming, but GPIO, UART, RGB LED, NVS and PWM backends were adapted to ESP32-S3. Earlier experiments, notably the native-UART `v0.2e` branch, are **not the current baseline**.
 
-## 4. Guide complet des options de `elrsV3.lua`
+## 4. Complete guide to the `elrsV3.lua` options
 
-Le menu affiché dépend des paramètres publiés par le firmware chargé. Les descriptions ci-dessous correspondent à **v0.2h2** : elles ne décrivent pas toutes les options du STM32 original. Les libellés anglais sont conservés pour pouvoir les retrouver sur la radio.
+The menu depends on what the loaded firmware advertises. This guide describes **v0.2h2**, not every feature available in the original STM32 implementation. Original English field labels are preserved to match the radio display.
 
-### Informations et `Global`
+### Device information and `Global`
 
-| Champ | Explication |
+| Field | Meaning |
 |---|---|
-| `Version(HW/SW)` | Information sur la variante matérielle et la version interne du portage. Ce n’est pas la version matérielle d’une carte STM32 Wilhelm. |
-| `Global → Switch Addr` | Adresse logique à laquelle le MultiSwitch répond. À faire correspondre à l’adresse utilisée dans le widget ; enregistrée en NVS. |
+| `Version(HW/SW)` | Internal hardware variant/software information for the ESP32-S3 port, not Wilhelm’s STM32 PCB revision. |
+| `Global → Switch Addr` | Logical address accepted by MultiSwitch commands. Match the widget address; saved to NVS. |
 
-**Pas encore disponible depuis le menu actuel :** inversion de polarité, choix du GPIO, adresse CRSF réglable, fréquence PWM réglable, réinitialisation générale et options de télémétrie avancée.
+**Not currently offered by the Lua menu:** polarity inversion, pin selection, writable CRSF device address, PWM frequency, factory reset, or advanced telemetry settings.
 
 ### `Failsafe`
 
-Le failsafe s’applique lors du **passage de la liaison CRSF à l’état déconnecté** (absence de nouvelles trames de voies valides pendant environ 500 ms). Il ne remplace pas le fonctionnement normal des commandes du widget tant que la liaison est active.
+Failsafe is applied when the CRSF link **transitions from connected to disconnected** (no fresh valid channel frames for about 500 ms). It does not suppress normal widget commands while the link is active.
 
-| Champ | Explication |
+| Field | Meaning |
 |---|---|
-| `Mode → Hold` | Conserver la dernière demande/valeur des sorties pendant la perte de liaison. |
-| `Mode → All-Off` | Forcer toutes les sorties à OFF ; pour le PWM, extinction à 0 %. |
-| `Mode → Set` | Appliquer les états individuels indiqués dans `Set Output 0…7`. |
-| `Set Output 0…7 → Off/On` | État de chaque sortie **uniquement quand `Mode=Set` et que le failsafe est déclenché**. Ce ne sont pas des commandes manuelles permanentes. |
+| `Mode → Hold` | Retain the last requested output states/values during link loss. |
+| `Mode → All-Off` | Turn all outputs OFF; PWM outputs go to 0%. |
+| `Mode → Set` | Apply individually configured `Set Output 0…7` states. |
+| `Set Output 0…7 → Off/On` | Desired output state **only when `Mode=Set` and failsafe occurs**; not a normal manual ON/OFF button. |
 
-Avec **`Set` + huit valeurs `Off`**, le résultat à la perte de liaison est le même que `All-Off`. Avec `Hold`, une sortie qui clignote ou répète du Morse peut continuer à fonctionner puisqu’elle conserve sa demande ON. **Sur une sortie `PWM Mode=Remote`**, `Set=On` correspond à 100 % et `Set=Off` à 0 % ; la consigne failsafe reste en place jusqu’à un nouveau `Prop` reçu. Tester toute charge motorisée sans hélice et en sécurité.
+**`Set` with all eight values `Off` is equivalent to `All-Off` upon link loss.** Under `Hold`, ongoing blinking or repeating Morse can continue as the output’s ON request is held. In **`PWM Mode=Remote`**, `Set=On` means 100% and `Set=Off` means 0%; the failsafe duty remains until a new `Prop` command arrives. Test motor loads safely without a propeller.
 
 ### `Operate`
 
-| Champ | Explication |
+| Field | Meaning |
 |---|---|
-| `Output 0…7 → Off/On` | Commande immédiate de la sortie choisie **depuis le script**, sans passer par le widget. L’ordre n’est pas un réglage NVS : il ne sera pas restauré comme commande active au prochain démarrage. |
+| `Output 0…7 → Off/On` | Immediately control any output **from the Lua script** without the widget. It is a temporary command, not a saved active state restored after reboot. |
 
-`Operate` et le widget envoient tous deux des ordres logiques. Les effets `Intervall`, `PWM` et `Morse` configurés pour la sortie concernée s’appliquent à ces ordres. En `PWM Mode=Remote`, la luminosité est pilotée par `Prop` plutôt que par le bouton ON/OFF.
+The widget and `Operate` both issue logical commands. The selected output’s Intervall, PWM and Morse configuration applies. In `PWM Mode=Remote`, duty is governed by `Prop`, not by the ON/OFF button.
 
-### `Output 0` … `Output 7` — paramètres individuels
+### `Output 0` … `Output 7` — individual configuration
 
-Chaque dossier correspond à un GPIO : `Output 0` = GPIO4 ; `Output 7` = GPIO11. Les huit sorties partagent le **même fonctionnement**, mais leurs réglages Intervall et PWM sont indépendants et sauvegardés en NVS.
+Each folder maps to a GPIO: `Output 0` = GPIO4, `Output 7` = GPIO11. All eight share the same engine, while Intervall and PWM settings are independent per output and stored in NVS.
 
-| Champ | Valeurs | Effet |
+| Field | Range | Effect |
 |---|---|---|
-| `Intervall Mode` | `Off / On / Morse` | Sortie fixe / clignotement en groupes / émission du texte Morse. |
-| `Intervall(on)` | 1–255, **× 50 ms** | Durée d’un éclat dans le mode `On`. |
-| `Intervall(off)` | 1–255, **× 50 ms** | Pause entre groupes d’éclats en mode `On`. |
-| `Intervall(count)` | 1–4 | Nombre d’éclats par groupe. L’espace entre deux éclats d’un groupe utilise également `Intervall(on)` dans ce portage. |
-| `PWM Mode` | `Off / On / Remote / Global/Indiv` | Voir les modes PWM ci-dessous. |
-| `PWM Duty` | 1–99 % | Intensité configurée ; 50 % par défaut. |
-| `PWM Expo` | 0–100 | Paramètre mémorisé **sans effet sur le signal à ce stade** ; la fonction `expo()` du code d’origine est également vide. |
+| `Intervall Mode` | `Off / On / Morse` | Steady output / grouped flashes / send Morse text. |
+| `Intervall(on)` | 1–255, **× 50 ms** | Flash ON duration in `On` mode. |
+| `Intervall(off)` | 1–255, **× 50 ms** | Pause between flash groups in `On` mode. |
+| `Intervall(count)` | 1–4 | Flashes per group. The space between flashes in one group also uses `Intervall(on)` in this port. |
+| `PWM Mode` | `Off / On / Remote / Global/Indiv` | See below. |
+| `PWM Duty` | 1–99% | Stored intensity; default 50%. |
+| `PWM Expo` | 0–100 | Stored **but currently has no effect**; upstream `expo()` is also empty. |
 
-**`Intervall(on/off/count)` n’agit pas sur le rythme Morse.** Pour le Morse, utiliser les durées du dossier `Morse`.
+**`Intervall(on/off/count)` does not control Morse timing.** Use the `Morse` folder for Morse timing.
 
-#### Choix de `PWM Mode`
+#### `PWM Mode` in detail
 
-| Mode | Comportement réel dans v0.2h2 |
+| Mode | Actual v0.2h2 behavior |
 |---|---|
-| `Off` | Sortie numérique ON/OFF ordinaire, pleine puissance quand allumée. |
-| `On` | PWM à l’intensité choisie, **activé/désactivé par le widget ou Operate** ; la luminosité reste compatible avec Intervall et Morse. |
-| `Remote` | La valeur **`Prop` CRSF (0–100 %)** commande directement le duty ; le bouton ON/OFF n’est pas la commande de luminosité. Après démarrage : 0 % jusqu’au premier `Prop`. |
-| `Global/Indiv` | Comme `On`, avec possibilité interne de multiplier le duty individuel par une valeur globale. **La commande Lua/virtuelle du Global Dimming n’est pas encore portée ; facteur global = 100 % par défaut.** |
+| `Off` | Ordinary digital ON/OFF; full output when ON. |
+| `On` | Configured PWM intensity, **gated by the widget/Operate**; combines with Intervall and Morse. |
+| `Remote` | CRSF **`Prop` (0–100%)** directly sets duty; the ON/OFF button is not the duty control. Starts at 0% until the first `Prop`. |
+| `Global/Indiv` | Like `On`, with an internal global duty multiplier. **Lua/virtual global-dimming control is NOT yet implemented; global factor defaults to 100%.** |
 
-Le PWM est produit par **LEDC matériel, 1 kHz, résolution 8 bits** sur les huit GPIO, et non par un `delay()` ou par le timer du port CRSF. Avec la polarité active LOW : 0 % = sortie HIGH/OFF ; 100 % = LOW/ON. Les valeurs exactement 0 % et 100 % sont des états électriques fixes. Les commandes `Prop` modifient la valeur en RAM sans remplacer le `PWM Duty` sauvegardé.
+PWM uses **hardware LEDC at 1 kHz, 8-bit resolution** on all eight GPIOs, not delay-based PWM or the CRSF UART timer. With active-LOW polarity: 0% = static HIGH/OFF; 100% = static LOW/ON. Exact 0% and 100% are static electrical levels. `Prop` values change runtime RAM without overwriting saved `PWM Duty`.
 
-#### Exemples combinés
+#### Combined examples
 
-| PWM Mode | Intervall Mode | Effet lorsque la sortie est demandée ON |
+| PWM Mode | Intervall Mode | Effect while output is requested ON |
 |---|---|---|
-| `Off` | `Off` | Allumage continu à pleine puissance. |
-| `Off` | `On` | Clignotement à pleine puissance. |
-| `On` | `Off` | Éclairage fixe atténué. |
-| `On` | `On` | Clignotement atténué. |
-| `On` | `Morse` | Morse lumineux atténué. |
+| `Off` | `Off` | Full-power steady output. |
+| `Off` | `On` | Full-power flashes. |
+| `On` | `Off` | Dimmed steady light. |
+| `On` | `On` | Dimmed flashes. |
+| `On` | `Morse` | Dimmed Morse flashes. |
 
-Ces combinaisons décrivent le PWM **géré par ON/OFF** ; `Remote` suit `Prop` indépendamment de la demande de clignotement/Morse.
+These are the **ON/OFF-gated PWM modes**. `Remote` follows `Prop` independently of Intervall/Morse commands.
 
-### `Morse` — paramètres communs aux huit sorties
+### `Morse` — shared settings for all eight outputs
 
-Une sortie joue le message `Text1` si **`Intervall Mode=Morse`** et qu’elle reçoit ON depuis le widget ou `Operate`. `Text1`, les durées et `Repeat` sont **communs aux huit sorties** ; chaque sortie possède son propre état d’exécution.
+An output transmits `Text1` when **`Intervall Mode=Morse`** and receives an ON command from the widget or `Operate`. `Text1`, timings and `Repeat` are **shared across all eight outputs**; each output maintains its own playback state.
 
-| Champ | Valeur et signification |
+| Field | Meaning |
 |---|---|
-| `Text1` | Message Morse commun, **15 caractères maximum**, `SOS` par défaut. Lettres, chiffres, espaces et `. , : ; ? ! - = +` pris en charge ; autres symboles refusés ou non codés. |
-| `Dit duration` | Durée d’allumage d’un **point** (`.`), en pas de 100 ms. |
-| `Dah duration` | Durée d’allumage d’un **trait** (`-`), en pas de 100 ms. |
-| `Intra S. Gap dur.` | Pause **entre signes d’une même lettre**. |
-| `Inter S. Gap dur.` | **Complément à Intra** pour la pause entre deux lettres. |
-| `Inter W. Gap dur.` | **Complément à Intra** pour la pause entre deux mots, lorsqu’il y a un espace dans `Text1`. |
-| `Repeat → Off/On` | **Off** : un message par commande OFF→ON (comme l’original) ; **On** : message répété tant que la demande de sortie reste ON. Extension de ce portage, absente du code Wilhelm d’origine. |
-| `Repeat pause` | Pause **entre messages complets**, 1–100 × 100 ms (0,1–10 s) ; défaut `9` = 0,9 s. Applicable si `Repeat=On`. Extension ESP32-S3. |
-| `Aide durees` | Sous-dossier **en lecture seule** expliquant les durées ; ne change aucun paramètre. Extension ESP32-S3 de v0.2h2. |
+| `Text1` | One shared Morse message, **15 characters maximum**, default `SOS`. Letters, digits, spaces and `. , : ; ? ! - = +` are supported; other symbols are rejected or not encoded. |
+| `Dit duration` | Lit duration of a **dot** (`.`), in 100 ms units. |
+| `Dah duration` | Lit duration of a **dash** (`-`), in 100 ms units. |
+| `Intra S. Gap dur.` | Gap **between marks in the same letter**. |
+| `Inter S. Gap dur.` | **Additional time on top of Intra** for a gap between letters. |
+| `Inter W. Gap dur.` | **Additional time on top of Intra** for a gap between words (a space in `Text1`). |
+| `Repeat → Off/On` | **Off:** one message per OFF→ON command (upstream behavior). **On:** repeat while output ON is requested. This ESP32-S3 extension is not part of Wilhelm’s original menu. |
+| `Repeat pause` | Pause **between complete messages**, 1–100 × 100 ms (0.1–10 s); default `9` = 0.9 s. Used when `Repeat=On`. ESP32-S3 extension. |
+| `Aide durees` | **Read-only** timing explanations, without changing settings. ESP32-S3 v0.2h2 extension. |
 
-Les cinq durées Morse sont réglables de **1 à 10**, en unités de **100 ms**. Dans **ce portage**, la différence entre Intra et Inter est particulièrement importante :
+The five Morse timing values are **1–10**, in **100 ms steps**. In **this port**, Intra and Inter must be read carefully:
 
-| Espace | Calcul effectif |
+| Gap | Effective calculation |
 |---|---|
-| Entre deux points/traits d’une même lettre | `Intra × 100 ms` |
-| Entre lettres | `(Intra + Inter S.) × 100 ms` |
-| Entre mots | `(Intra + Inter W.) × 100 ms` |
-| Entre deux messages répétés | `Repeat pause × 100 ms` |
+| Between dots/dashes in one letter | `Intra × 100 ms` |
+| Between letters | `(Intra + Inter S.) × 100 ms` |
+| Between words | `(Intra + Inter W.) × 100 ms` |
+| Between repeated messages | `Repeat pause × 100 ms` |
 
-**Exemple de rapports Morse usuels :** `Dit=1`, `Dah=3`, `Intra=1`, `Inter S.=2`, `Inter W.=6` produisent 100 ms/300 ms de lumière, 100 ms entre signes, 300 ms entre lettres et 700 ms entre mots. `Repeat pause=9` ajoute 900 ms avant le nouveau message complet. Ces valeurs sont un **exemple**, pas une modification automatique des valeurs enregistrées.
+**Example of standard Morse timing ratios:** `Dit=1`, `Dah=3`, `Intra=1`, `Inter S.=2`, `Inter W.=6` yields a 100 ms dot, 300 ms dash, 100 ms intra-letter gap, 300 ms between letters and 700 ms between words. `Repeat pause=9` adds 900 ms before the next complete message. These are **example settings**: the firmware does not silently change your stored values.
 
-Avec `Repeat=Off`, le message s’éteint à la fin ; faire OFF puis ON pour le rejouer. Avec `Repeat=On`, il se répète jusqu’au OFF. Une commande OFF coupe immédiatement, même au milieu d’un point ou pendant la pause. Le PWM règle la **luminosité** des points et traits sans modifier leurs durées.
+With `Repeat=Off`, playback ends after one message; switch OFF then ON to play it again. With `Repeat=On`, it repeats until OFF. OFF stops playback immediately, even during a mark or repeat pause. PWM adjusts **brightness**, not Morse timing.
 
-## 5. LED RGB de statut sur GPIO48
+## 5. RGB status LED on GPIO48
 
-| Affichage | Sens dans ce firmware |
+| Appearance | Meaning in this firmware |
 |---|---|
-| **Vert fixe** | Des trames de voies CRSF valides arrivent récemment. |
-| **Bref bleu** | Une commande MultiSwitch vient d’être traitée (environ 120 ms), puis retour au vert. C’est pourquoi le widget peut faire brièvement clignoter la LED même lorsque la réception reste excellente. |
-| **Rouge** | Pas de trame CRSF récente / aucune liaison utilisable depuis au moins environ 1 s. |
-| **Orange / éteint alternés** | Des trames CRSF récentes existent, mais aucune trame de voies valide depuis au moins 500 ms. |
+| **Steady green** | Fresh valid CRSF channel frames are arriving. |
+| **Brief blue flash** | A MultiSwitch command has just been processed (about 120 ms), then it returns to green. This is why the widget may periodically flash the status LED even with a healthy link. |
+| **Red** | No recent CRSF frames / no usable link for about 1 s or more. |
+| **Alternating orange/off** | Recent CRSF frames exist, but no fresh valid channel frame for at least 500 ms. |
 
-Le bleu constitue volontairement un témoin visuel de l’activité du widget ; **il n’indique pas à lui seul une erreur de réception**.
+Blue is intentionally a visible widget activity indicator; **it does not by itself signal an RX error**.
 
-## 6. Console de diagnostic USB
+## 6. USB diagnostic console
 
-À **115200 bauds** ; commandes avec Entrée (`CR` ou `LF`) :
+Use **115200 baud** and press Enter (`CR` or `LF`):
 
-| Commande | Fonction |
+| Command | Action |
 |---|---|
-| `D=0` | Diagnostics périodiques silencieux (défaut au démarrage). |
-| `D=1` | Afficher une fois par seconde `[MSW]`, `[LINK]` et le bilan d’observation éventuel. |
-| `D=2` | Diagnostics plus détaillés sur l’UART, le menu, la sauvegarde et les CRC. À réserver aux essais. |
-| `D?` | Afficher le niveau courant ; `D` bascule entre 0 et 1. |
-| `C=1` | Démarrer/remettre à zéro l’observateur brut CRSF. |
-| `C?` | Lire ses compteurs et son échantillon `BEFORE / BAD / AFTER`, si disponible. |
-| `C=0` | Arrêter l’observateur. |
-| `?` ou `help` | Aide sur les commandes. |
+| `D=0` | Silent periodic diagnostics (startup default). |
+| `D=1` | Once-a-second `[MSW]`, `[LINK]`, and observer counts if enabled. |
+| `D=2` | More detailed UART, menu, save and CRC debugging; use for testing. |
+| `D?` | Show debug level; `D` toggles between 0 and 1. |
+| `C=1` | Start/reset the optional raw CRSF observer. |
+| `C?` | Show its counts and `BEFORE / BAD / AFTER` sample, if available. |
+| `C=0` | Stop the observer. |
+| `?` or `help` | Command help. |
 
-`[MSW] outs=XX` représente les **sorties logiquement visibles/actives**, pas les fronts du PWM. `crcErr` et `[RX-CHECK]` servent au diagnostic : une trame candidate mal décodée ne prouve pas à elle seule un défaut du fil. `D=0` et `C=0` conviennent à l’exploitation normale.
+`[MSW] outs=XX` shows **logically visible/active outputs**, not individual PWM edges. `crcErr` and `[RX-CHECK]` are diagnostic aids: one bad candidate does not by itself establish a faulty wire. `D=0` and `C=0` are appropriate for normal operation.
 
-## 7. Installation et premier test
+## 7. Installation and quick check
 
-1. Conserver une sauvegarde de la version précédente qui fonctionne. Ouvrir `RCMultiSwitch_ESP32S3.ino` dans **Arduino IDE**, avec la carte ESP32-S3 et un core Arduino-ESP32 compatible avec ce projet (travaux réalisés autour de la branche **3.0.7**).
-2. Vérifier le **vrai GND commun**, GPIO12/13 croisés avec TX/RX de l’ER8, et l’absence de charge trop importante sur les GPIO.
-3. Compiler et téléverser, puis ouvrir la console USB à 115200 bauds. L’adresse `Switch Addr` enregistrée en NVS peut différer de sa valeur par défaut.
-4. Sur la radio, ouvrir `elrsV3.lua`, sélectionner le MultiSwitch et vérifier `Global`, `Failsafe`, `Operate`, les huit dossiers `Output` et `Morse`.
-5. Sur OUT0 (GPIO4), essayer successivement : ON/OFF ; `Intervall Mode=On` ; `PWM Mode=On`, duty 10/50/90 % ; `Intervall Mode=Morse`, `Text1=SOS`, puis `Repeat=On`. Tester OFF à chaque étape.
-6. Attendre **au moins 3–4 secondes après les derniers réglages** avant de redémarrer, puis vérifier qu’ils ont été mémorisés.
+1. Back up the last known-good build. Open `RCMultiSwitch_ESP32S3.ino` in **Arduino IDE**, select your ESP32-S3 board and a compatible Arduino-ESP32 core (development used the **3.0.7** branch).
+2. Check **actual common GND**, crossed TX/RX wiring on GPIO12/13, and safe GPIO loads.
+3. Build/flash, then open the USB console at 115200 baud. `Switch Addr` may be read from older NVS settings.
+4. Open `elrsV3.lua` on the radio, select MultiSwitch and check `Global`, `Failsafe`, `Operate`, all eight `Output` folders and `Morse`.
+5. On OUT0/GPIO4 try ON/OFF, `Intervall Mode=On`, `PWM Mode=On` at 10/50/90%, then `Intervall Mode=Morse`, `Text1=SOS`, `Repeat=On`. Verify OFF stops each mode.
+6. Wait **at least 3–4 seconds after the final edit** before restarting; confirm settings persisted.
 
-Ne pas confondre **PWM de gradation 1 kHz** avec les impulsions d’un **servo RC 1–2 ms** : les sorties de cette version ne sont pas des sorties servo.
+The **1 kHz lighting PWM is not a 1–2 ms RC servo signal**: this release does not provide servo outputs.
 
-## 8. Ce qui reste à porter ou à développer
+## 8. Not yet ported / planned
 
-Cette liste distingue volontairement le **code déjà présent** de la **feuille de route** :
+These are deliberately distinguished from **features already working in v0.2h2**:
 
-- **Virtuals** : adresse et sorties virtuelles, groupes de sorties.
-- **Global Dimming réellement commandable** depuis une adresse/commande virtuelle ; seul le calcul de multiplication est préparé dans `Global/Indiv`.
-- **Patterns** : séquences entre plusieurs sorties et enchaînements.
-- Autres options conditionnelles de l’original : commandes maître/esclave, menu Reset, télémétrie/capteurs et fonctions dépendantes de la carte STM32.
-- **Réglage de polarité depuis `elrsV3.lua`** (global ou sortie par sortie) : **proposé, pas encore implémenté**.
-- **Sortie UART série configurable** sur OUT0…7 : **pas implémentée**, et à distinguer du port CRSF de GPIO12/13.
+- **Virtuals:** virtual address and grouped physical outputs.
+- **Externally commanded Global Dimming:** the internal `Global/Indiv` multiplier exists, but the virtual/Lua control is not yet ported.
+- **Patterns:** timed multi-output sequences and chaining.
+- Other conditional upstream features: master/slave commands, Reset menu, sensor/advanced telemetry and STM32-board-specific functions.
+- **Polarity setting via `elrsV3.lua`** (global or per-output): **proposed but NOT implemented**.
+- **Configurable UART serial output** using OUT0…7: **not implemented**, and distinct from CRSF on GPIO12/13.
 
-Ne pas annoncer ces fonctions comme disponibles dans v0.2h2. Le principe de développement adopté est de préserver la réception CRSF fonctionnelle, puis d’ajouter et de valider les fonctions une par une sur la carte réelle.
+Do not present these as existing v0.2h2 features. The agreed approach is to retain the proven CRSF receive path and add and validate one feature at a time on actual hardware.
 
 ---
 
-**Crédits et attribution :** WMuCpp / RC MultiSwitch-E © Wilhelm Meier ; portage et essais ESP32-S3 avec Pierrot et assistance ChatGPT. **Licence du code : GPL-3.0-or-later.** Le projet d’origine et le présent portage doivent rester clairement distingués.
+**Credits and attribution:** WMuCpp / RC MultiSwitch-E © Wilhelm Meier; ESP32-S3 adaptation and testing with Pierrot and ChatGPT assistance. **Code license: GPL-3.0-or-later.** The original project and this port must remain clearly distinguished.
